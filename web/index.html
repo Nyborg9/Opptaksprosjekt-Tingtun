@@ -6,33 +6,38 @@
   <title>Opptak</title>
   <style>
     body { font-family: system-ui, Arial, sans-serif; margin: 2rem; }
-    .controls { display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center; }
+    .controls { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; align-items: center; }
     button { padding: 0.6rem 1rem; font-size: 1rem; }
     #status { margin-left: 0.5rem; font-weight: 600; }
-    video { width: 100%; max-width: 900px; border: 1px solid #ddd; border-radius: 8px; }
+    video { width: 100%; max-width: 900px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 1rem; }
+    .progress { height:8px; background:#eee; width:100%; margin-top:8px; border-radius:4px; overflow:hidden; }
+    .progress > div { height:100%; width:0%; background:#4caf50; }
   </style>
 </head>
 <body>
   <h1>Opptak av test</h1>
+
+  <!-- Live preview of the combined stream -->
+  <video id="preview" autoplay playsinline muted></video>
+
   <div class="controls">
     <button id="startBtn">Start Opptak</button>
-    <button id="stopBtn" disabled>Stopp & Last opp</button>
+    <button id="stopBtn" disabled>Stopp &amp; Last opp</button>
     <label>
       <input type="checkbox" id="sysAudioToggle"> Ta opp systemlyd
     </label>
     <span id="status"></span>
   </div>
 
-  <h2>Last opp skjermopptak</h2>
+  <h2>Last opp skjermopptak (iOS / filopplasting)</h2>
   <input id="iosFile" type="file" accept="video/*" />
-  <div id="iosProgress" style="height:8px;background:#eee;width:100%;margin-top:8px;">
-    <div id="iosBar" style="height:100%;width:0%;background:#4caf50;"></div>
+  <div id="iosProgress" class="progress">
+    <div id="iosBar"></div>
   </div>
   <div id="iosStatus" style="margin-top:8px;"></div>
   <button id="iosUploadBtn">Last opp video</button>
 
-  <!-- RecordRTC (CDN) -->
-  <script src="https://cdn.webrtc-experiment.com/RecordRTC.js"></script>
-  <script src="./main.js"></script>
+  <!-- Load your app as ES modules (no RecordRTC needed) -->
+  <script type="module" src="./main.js"></script>
 </body>
 </html>
