@@ -11,6 +11,8 @@ services:
     volumes:
       - server_uploads:/app/uploads
       - server_db:/app/data
+      - server_staging:/app/staging
+    restart: unless-stopped
 
   web:
     image: nginx:alpine
@@ -21,7 +23,9 @@ services:
       - ./web:/usr/share/nginx/html:ro
     depends_on:
       - server
+    restart: unless-stopped
 
 volumes:
   server_uploads:
   server_db:
+  server_staging:

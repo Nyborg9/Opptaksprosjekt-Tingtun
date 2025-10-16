@@ -1,24 +1,36 @@
+// server/server.js
 import express from 'express';
 import multer from 'multer';
 import fs from 'fs';
+import fsp from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
 import cors from 'cors';
 import Database from 'better-sqlite3';
+import { spawn } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// --- konfig ---
-const PORT = process.env.PORT || 3001;
-const UPLOAD_DIR = path.join(__dirname, 'uploads');
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+/* =========================
+   Config
+   ========================= */
+const PORT         = process.env.PORT || 3001;
+const ROOT_DIR     = __dirname;
+const UPLOAD_DIR   = process.env.UPLOAD_DIR  || path.join(ROOT_DIR, 'uploads');   // final files
+const STAGING_DIR  = process.env.STAGING_DIR || path.join(ROOT_DIR, 'staging');   // per-session parts
+const DATA_DIR     = process.env.DATA_DIR    || path.join(ROOT_DIR, 'data');      // SQLite
+const MAX_FILE_GB  = Number(process.env.MAX_FILE_GB || 2);                        // single upload route cap
+const STAGING_TTLH = Number(process.env.STAGING_TTL_HOURS || 24);                 // GC old sessions
 
-// --- DB (SQLite) ---
-const DATA_DIR = path.join(__dirname, 'data');
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+for (const d of [UPLOAD_DIR, STAGING_DIR, DATA_DIR]) {
+  if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+}
 
+/* =========================
+   Database (SQLite)
+   ========================= */
 const DB_PATH = path.join(DATA_DIR, 'data.sqlite');
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
@@ -35,30 +47,63 @@ CREATE TABLE IF NOT EXISTS recordings (
 CREATE INDEX IF NOT EXISTS idx_rec_owner_created ON recordings(owner_id, created_at DESC);
 `);
 
-// --- app ---
+/* =========================
+   App + Middleware
+   ========================= */
 const app = express();
-app.use(cors({ origin: true }));       // tillat localhost-oppsett
+
+// CORS for local dev (8080 -> 3001). In prod, use a reverse proxy for same-origin.
+app.use(cors({ origin: true, methods: ['GET','POST','OPTIONS'], allowedHeaders: ['Content-Type'] }));
+app.options('*', cors());
+
 app.use(express.json());
-app.use('/uploads', express.static(UPLOAD_DIR));
+app.use('/uploads', express.static(UPLOAD_DIR)); // dev convenience
 
-// Demo: én "owner". Bytt til ekte auth senere.
-function getOwnerId(req) { return 'demo-user'; }
+// Simple health
+app.get('/health', (_req, res) => res.json({ ok: true }));
 
-// --- Én-fil opplasting (/upload) ---
+// Placeholder owner (replace with real auth later)
+function getOwnerId(_req) { return 'demo-user'; }
+
+/* =========================
+   Helpers
+   ========================= */
+function safeExt(mime) {
+  if (!mime) return '.webm';
+  const m = mime.toLowerCase();
+  if (m.includes('webm')) return '.webm';
+  if (m.includes('mp4')) return '.mp4';
+  if (m.includes('quicktime')) return '.mov';
+  return '.webm';
+}
+
+function runFfmpeg(args, { showLogs = true } = {}) {
+  return new Promise((resolve) => {
+    const ff = spawn('ffmpeg', args);
+    if (showLogs) {
+      ff.stderr.on('data', (d) => process.stderr.write(d));
+    }
+    ff.on('close', (code) => resolve(code));
+  });
+}
+
+/* =========================
+   Single-file upload (unchanged)
+   ========================= */
 const diskStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-  filename: (req, file, cb) => {
+  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
+  filename: (_req, file, cb) => {
     const id = uuidv4();
     const ext = path.extname(file.originalname) || '.webm';
     cb(null, `${id}${ext}`);
   }
 });
-const upload = multer({
+const uploadSingle = multer({
   storage: diskStorage,
-  limits: { fileSize: 2 * 1024 * 1024 * 1024 } // 2GB
+  limits: { fileSize: MAX_FILE_GB * 1024 * 1024 * 1024 }
 });
 
-app.post('/upload', upload.single('file'), (req, res) => {
+app.post('/upload', uploadSingle.single('file'), (req, res) => {
   try {
     const id = path.parse(req.file.filename).name;
     const url = `/uploads/${req.file.filename}`;
@@ -73,68 +118,179 @@ app.post('/upload', upload.single('file'), (req, res) => {
 
     res.json({ id, url });
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Store failed' });
+    console.error('[single-upload] error', e);
+    res.status(500).json({ error: 'store failed' });
   }
 });
 
-// --- Chunket opplasting (/upload/chunk + /upload/finish) ---
-const memUpload = multer({ storage: multer.memoryStorage() });
+/* =========================
+   Chunked upload (parts + ffmpeg concat)
+   ========================= */
+const memUpload = multer({ storage: multer.memoryStorage() }); // for chunk (file)
+const formOnly  = multer();                                    // for finish (fields only)
 
-const inprogress = new Map();      // uploadId -> fs.WriteStream
-const inprogressMeta = new Map();  // uploadId -> { ownerId, startedAt, mimeType, filename }
+const sessions = new Map(); // uploadId -> { ownerId, mimeType, startedAt, ext }
 
-app.post('/upload/chunk', memUpload.single('chunk'), (req, res) => {
-  const { uploadId, mimeType } = req.body || {};
-  if (!uploadId || !req.file) return res.status(400).json({ error: 'bad request' });
+/** POST /upload/chunk
+ *  FormData: chunk (file), uploadId, mimeType, index (optional)
+ */
+app.post('/upload/chunk', memUpload.single('chunk'), async (req, res) => {
+  try {
+    const { uploadId, mimeType } = req.body || {};
+    if (!uploadId || !req.file) return res.status(400).json({ error: 'bad request' });
 
-  let meta = inprogressMeta.get(uploadId);
-  if (!meta) {
-    const ownerId = getOwnerId(req);
-    const ext =
-      mimeType?.includes('webm') ? '.webm' :
-      mimeType?.includes('mp4')  ? '.mp4'  :
-      mimeType?.includes('quicktime') ? '.mov' : '.bin';
-    const filename = `${uploadId}${ext}`;
-    meta = { ownerId, startedAt: Date.now(), mimeType: mimeType || 'application/octet-stream', filename };
-    inprogressMeta.set(uploadId, meta);
+    let meta = sessions.get(uploadId);
+    if (!meta) {
+      const ownerId = getOwnerId(req);
+      meta = {
+        ownerId,
+        mimeType: mimeType || 'video/webm',
+        startedAt: Date.now(),
+        ext: safeExt(mimeType)
+      };
+      sessions.set(uploadId, meta);
+    }
+
+    const sessDir = path.join(STAGING_DIR, uploadId);
+    await fsp.mkdir(sessDir, { recursive: true });
+
+    const idx = Number.isFinite(+req.body?.index) ? Number(req.body.index) : null;
+    const partName = (idx !== null && idx >= 0)
+      ? `${idx}.webm.part`
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}.webm.part`;
+    const partPath = path.join(sessDir, partName);
+
+    await fsp.writeFile(partPath, req.file.buffer);
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error('[chunk] store failed', e);
+    return res.status(500).json({ error: 'chunk store failed' });
   }
-
-  let handle = inprogress.get(uploadId);
-  if (!handle) {
-    const filepath = path.join(UPLOAD_DIR, meta.filename);
-    handle = fs.createWriteStream(filepath, { flags: 'a' });
-    inprogress.set(uploadId, handle);
-  }
-
-  handle.write(req.file.buffer);
-  res.json({ ok: true });
 });
 
-app.post('/upload/finish', (req, res) => {
-  const { uploadId, durationMs = 0 } = req.body || {};
-  const handle = inprogress.get(uploadId);
-  const meta = inprogressMeta.get(uploadId);
-  if (!meta) return res.status(404).json({ error: 'unknown uploadId' });
+/** POST /upload/finish
+ *  FormData: uploadId, durationMs
+ */
+app.post('/upload/finish', formOnly.none(), async (req, res) => {
+  const uploadId   = req.body?.uploadId;
+  const durationMs = Number(req.body?.durationMs || 0);
+  if (!uploadId) return res.status(400).json({ error: 'uploadId required' });
 
-  if (handle) handle.end();
-  inprogress.delete(uploadId);
+  const meta = sessions.get(uploadId) || { ownerId: getOwnerId(req), mimeType: 'video/webm', ext: '.webm' };
+  const sessDir = path.join(STAGING_DIR, uploadId);
 
-  const filepath = path.join(UPLOAD_DIR, meta.filename);
+  try {
+    const entries = await fsp.readdir(sessDir).catch(() => []);
+    const parts = entries
+      .filter(n => n.endsWith('.part'))
+      .map(n => {
+        const m = n.match(/^(\d+)\.webm\.part$/);
+        return { n, order: m ? parseInt(m[1], 10) : Number.MAX_SAFE_INTEGER, mtime: 0 };
+      });
 
-  const stats = fs.statSync(filepath);
-  const url = `/uploads/${meta.filename}`;
-  const { ownerId } = meta;
-  const id = uploadId;
+    if (!parts.length) {
+      console.error('[finish] no parts for', uploadId, 'dir=', sessDir);
+      return res.status(400).json({ error: 'no parts' });
+    }
 
-  db.prepare(`
-    INSERT INTO recordings(id, owner_id, url, mime_type, bytes, duration_ms)
-    VALUES(?, ?, ?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET url=excluded.url, mime_type=excluded.mime_type, bytes=excluded.bytes, duration_ms=excluded.duration_ms
-  `).run(id, ownerId, url, meta.mimeType, stats.size, Number(durationMs));
+    // Sort by provided index, else by mtime
+    if (parts.every(p => p.order === Number.MAX_SAFE_INTEGER)) {
+      const stats = await Promise.all(parts.map(p => fsp.stat(path.join(sessDir, p.n))));
+      parts.forEach((p, i) => (p.mtime = stats[i].mtimeMs));
+      parts.sort((a, b) => a.mtime - b.mtime);
+    } else {
+      parts.sort((a, b) => a.order - b.order);
+    }
 
-  inprogressMeta.delete(uploadId);
-  res.json({ id, url });
+    // Build concat list.txt
+    const listPath = path.join(sessDir, 'list.txt');
+    const lines = parts.map(p => {
+      const abs = path.join(sessDir, p.n).replace(/'/g, "'\\''");
+      return `file '${abs}'`;
+    }).join('\n');
+    await fsp.writeFile(listPath, lines);
+
+    // Final output
+    const finalName = `${uploadId}${meta.ext}`;
+    const finalPath = path.join(UPLOAD_DIR, finalName);
+
+    // ffmpeg concat (stream copy)
+    const args = ['-f','concat','-safe','0','-i', listPath, '-c','copy', finalPath];
+    console.log('[finish] ffmpeg', args.join(' '));
+    const code = await runFfmpeg(args);
+    if (code !== 0) {
+      console.error('[finish] ffmpeg exit code', code);
+      return res.status(500).json({ error: 'ffmpeg concat failed' });
+    }
+
+    // Persist DB row
+    const stats = await fsp.stat(finalPath);
+    const url = `/uploads/${finalName}`;
+    const id = uploadId;
+    const ownerId = meta.ownerId;
+
+    db.prepare(`
+      INSERT INTO recordings(id, owner_id, url, mime_type, bytes, duration_ms)
+      VALUES(?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE
+      SET url=excluded.url, mime_type=excluded.mime_type, bytes=excluded.bytes, duration_ms=excluded.duration_ms
+    `).run(id, ownerId, url, meta.mimeType, stats.size, durationMs);
+
+    // Cleanup staging
+    try { await fsp.rm(sessDir, { recursive: true, force: true }); } catch {}
+    sessions.delete(uploadId);
+
+    return res.json({ id, url });
+  } catch (e) {
+    console.error('[finish] finalize error', e);
+    return res.status(500).json({ error: 'finalize failed' });
+  }
 });
 
-app.listen(PORT, () => console.log(`SQLite-backend kjører på http://localhost:${PORT}`));
+/* =========================
+   (Optional) list recent recordings (dev helper)
+   ========================= */
+app.get('/recordings', (req, res) => {
+  const ownerId = getOwnerId(req);
+  const rows = db.prepare(`
+    SELECT id, url, mime_type AS mimeType, bytes, duration_ms AS durationMs, created_at AS createdAt
+    FROM recordings
+    WHERE owner_id = ?
+    ORDER BY datetime(created_at) DESC
+    LIMIT 50
+  `).all(ownerId);
+  res.json({ items: rows });
+});
+
+/* =========================
+   GC for stale staging sessions
+   ========================= */
+async function gcStaging() {
+  try {
+    const now = Date.now();
+    const cutoff = now - STAGING_TTLH * 60 * 60 * 1000;
+    const dirs = await fsp.readdir(STAGING_DIR).catch(() => []);
+    for (const d of dirs) {
+      const full = path.join(STAGING_DIR, d);
+      try {
+        const st = await fsp.stat(full);
+        if (st.isDirectory() && st.mtimeMs < cutoff) {
+          console.log('[gc] removing stale', full);
+          await fsp.rm(full, { recursive: true, force: true });
+          sessions.delete(d);
+        }
+      } catch {}
+    }
+  } catch (e) {
+    console.error('[gc] error', e);
+  }
+}
+setInterval(gcStaging, 60 * 60 * 1000).unref(); // hourly
+gcStaging(); // run once on boot
+
+/* =========================
+   Start
+   ========================= */
+app.listen(PORT, () => {
+  console.log(`SQLite-backend kjører på http://localhost:${PORT}`);
+});
