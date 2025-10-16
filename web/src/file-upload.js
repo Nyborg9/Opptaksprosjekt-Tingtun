@@ -6,7 +6,8 @@ export function wireFileUploader({
   buttonEl,       // <button id="iosUploadBtn">
   statusEl,       // <span id="iosStatus">
   progressBarEl,  // <div id="iosBar"> (width will be set)
-  chunkSize = 5 * 1024 * 1024 // 5 MB
+  chunkSize = 5 * 1024 * 1024, // 5 MB
+  getUploadId     // optional: function that returns a custom uploadId (e.g., from unlock code)
 }) {
   if (!inputEl || !buttonEl) return;
 
@@ -21,7 +22,8 @@ export function wireFileUploader({
     setProgress(0);
     setStatus('Starter opplasting…');
 
-    const up = createChunkUploader({ maxPending: 2 });
+    const customId = getUploadId?.();
+    const up = createChunkUploader({ maxPending: 1, uploadId: customId });
     await up.start();
 
     try {
@@ -35,7 +37,6 @@ export function wireFileUploader({
         setStatus(`Laster opp… ${Math.round(100 * offset / file.size)}%`);
       }
 
-      // duration is optional here; set 0 (server can probe with ffprobe if needed)
       const result = await up.finalize(0); // { id, url }
       setProgress(1);
       setStatus(`Ferdig! ${result.url}`);
