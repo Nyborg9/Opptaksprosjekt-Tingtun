@@ -75,12 +75,17 @@ export async function startRecorder({
   recorder.ondataavailable = (e) => {
     if (e.data && e.data.size) onChunk?.(e.data, mimeType);
   };
+  
   recorder.onstart = () => onStatus?.('Tar opp …');
   recorder.onerror = (e) => onStatus?.(`Feil i opptaker: ${e.error?.message || e.message || e.name}`);
 
   // Let caller control backpressure by pausing/resuming these:
   function pause()  { try { if (recorder.state === 'recording') recorder.pause(); } catch {} }
   function resume() { try { if (recorder.state === 'paused')   recorder.resume(); } catch {} }
+  
+  function flush() {
+    try { recorder.requestData?.(); } catch {}
+  }
 
   function stop() {
     if (recorder.state !== 'inactive') recorder.stop();
@@ -98,12 +103,14 @@ export async function startRecorder({
   vTrack.onended = () => stop();
 
   recorder.start(timesliceMs);
-
   return {
     stop,
     cleanup,
     pause,
     resume,
+    flush,
+    requestData: () => { try { recorder.requestData?.(); } catch {} },
     getDurationMs: () => Date.now() - startedAt
   };
+
 }
