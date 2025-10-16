@@ -7,13 +7,17 @@ function newUploadId() {
   return (self.crypto?.randomUUID?.() || String(Date.now()) + '-' + Math.random().toString(36).slice(2));
 }
 
-export function createChunkUploader({ maxPending = 2 } = {}) {
+/**
+ * Uploader with backpressure and optional fixed uploadId.
+ * For direct-append backend, keep maxPending=1 (sequential).
+ */
+export function createChunkUploader({ maxPending = 1, uploadId: fixedId } = {}) {
   let uploadId = null;
   let nextIndex = 0;
   let pending = 0;
 
   async function start() {
-    uploadId = newUploadId();
+    uploadId = fixedId || newUploadId();
     nextIndex = 0;
     pending = 0;
     return uploadId;
@@ -25,11 +29,7 @@ export function createChunkUploader({ maxPending = 2 } = {}) {
     form.append('uploadId', uploadId);
     form.append('mimeType', mimeType);
     form.append('index', String(index));
-    const res = await fetch(ENDPOINT_CHUNK, {
-      method: 'POST',
-      body: form,
-      // credentials: 'include', // <-- uncomment if your API uses cookies/CSRF
-    });
+    const res = await fetch(ENDPOINT_CHUNK, { method: 'POST', body: form });
     if (!res.ok) throw new Error(`chunk failed: ${res.status}`);
   }
 
@@ -55,25 +55,23 @@ export function createChunkUploader({ maxPending = 2 } = {}) {
     }
   }
 
- async function finalize(durationMs) {
-  await flush();
+  async function finalize(durationMs) {
+    await flush();
 
-  const form = new FormData();
-  form.append('uploadId', uploadId);
-  form.append('durationMs', String(durationMs));
+    const form = new FormData();
+    form.append('uploadId', uploadId);
+    form.append('durationMs', String(durationMs));
 
-  console.log('[finalize] endpoint', ENDPOINT_FINISH, 'uploadId=', uploadId, 'durationMs=', durationMs);
+    console.log('[finalize] endpoint', ENDPOINT_FINISH, 'uploadId=', uploadId, 'durationMs=', durationMs);
 
-  try {
     const res = await fetch(ENDPOINT_FINISH, { method: 'POST', body: form });
     console.log('[finalize] got response?', res && res.status);
     if (!res.ok) {
       const text = await res.text().catch(() => '');
       throw new Error(`finish failed: ${res.status} ${text}`);
     }
-    return res.json();
-  } catch (e) {
-    console.error('[finalize] fetch failed', e);
-    throw e;
+    return res.json(); // { id, url }
   }
-}}
+
+  return { start, push, flush, finalize, get uploadId() { return uploadId; } };
+}
