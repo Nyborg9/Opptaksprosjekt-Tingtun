@@ -1,3 +1,5 @@
+// main.js
+
 const BASE_URL = 'http://localhost:3001';
 
 let recorder = null;
@@ -12,6 +14,13 @@ const stopBtn  = document.getElementById('stopBtn');
 const statusEl = document.getElementById('status');
 const preview  = document.getElementById('preview');
 const sysAudioToggle = document.getElementById('sysAudioToggle');
+
+// --- Kodehåndtering ---
+const KNOWN_CODES = new Set(['test1', 'test2', 'test3']);
+function getUnlockedCode() {
+  const c = sessionStorage.getItem('unlockToken');
+  return KNOWN_CODES.has(c) ? c : null;
+}
 
 function setStatus(text) { statusEl.textContent = text || ''; }
 
@@ -31,6 +40,13 @@ function bestMimeType() {
 
 async function startRecording() {
   try {
+    // Enkel sjekk: krever gyldig kode
+    const unlockedCode = getUnlockedCode();
+    if (!unlockedCode) {
+      setStatus('Låst: skriv inn gyldig kode for å starte opptak.');
+      return;
+    }
+
     setStatus('Spør etter tillatelser …');
     startBtn.disabled = true;
     stopBtn.disabled = true;
@@ -94,7 +110,7 @@ async function startRecording() {
 
     await recorder.startRecording();
     window.__recStartedAt = Date.now();
-    setStatus('Tar opp …');
+    setStatus(`Tar opp … (kode: ${unlockedCode})`);
     stopBtn.disabled = false;
 
     vTrack.onended = () => { if (!stopBtn.disabled) stopRecording(); };
@@ -104,7 +120,7 @@ async function startRecording() {
     else if (sysTrack) parts.push('system/tab-lyd');
     else if (micTrack) parts.push('mikrofon');
     else parts.push('ingen lyd');
-    setStatus(`Tar opp video + ${parts.join('')}.`);
+    setStatus(`Tar opp video + ${parts.join('')}. (kode: ${unlockedCode})`);
   } catch (err) {
     console.error(err);
     setStatus(`Feil: ${err.message}`);
@@ -122,14 +138,25 @@ async function stopRecording() {
     await recorder.stopRecording();
     const blob = await recorder.getBlob();
 
-    const fileName = `screen-recording-${new Date().toISOString().replace(/[:.]/g, '-')}.webm`;
+    // Filnavn med kode-prefiks
+    const unlockedCode = getUnlockedCode();
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const prefix = unlockedCode || 'screen-recording';
+    const fileName = `${prefix}-${timestamp}.webm`;
+
     const form = new FormData();
     form.append('file', blob, fileName);
     form.append('mimeType', blob.type || 'video/webm');
     form.append('durationMs', String(Date.now() - (window.__recStartedAt || Date.now())));
+    if (unlockedCode) form.append('code', unlockedCode); // send koden til serveren også
 
     setStatus('Laster opp …');
-    const res = await fetch(`${BASE_URL}/upload`, { method: 'POST', body: form });
+    const res = await fetch(`${BASE_URL}/upload`, {
+      method: 'POST',
+      body: form,
+      // alternativt kan du sende kode i header
+      // headers: { 'X-Unlock-Code': unlockedCode || '' }
+    });
 
     if (!res.ok) throw new Error(`Upload feilet: ${res.status}`);
     const json = await res.json();
@@ -175,6 +202,8 @@ stopBtn.addEventListener('click', stopRecording);
     setStatus('MediaRecorder støttes ikke i denne nettleseren.');
     startBtn.disabled = true;
   } else {
+    // Hvis låst, kan unlock.js holde UI skjult, men vi lar start være tilgjengelig.
+    // startRecording() vil uansett nekte hvis kode mangler.
     startBtn.disabled = false;
     stopBtn.disabled = true;
   }
@@ -196,11 +225,13 @@ function iosSetStatus(t){ iosStatusEl.textContent = t || ''; }
 function iosSetProgress(f){ iosBar.style.width = `${Math.round(f*100)}%`; }
 
 async function iosSendChunk(blob, uploadId, mimeType) {
+  const code = getUnlockedCode() || '';
   return new Promise((resolve, reject) => {
     const form = new FormData();
     form.append('chunk', blob, 'part.bin');
     form.append('uploadId', uploadId);
     form.append('mimeType', mimeType);
+    form.append('code', code); // send kode på hver chunk
 
     const xhr = new XMLHttpRequest();
     xhr.open('POST', ENDPOINT_CHUNK, true);
@@ -211,6 +242,13 @@ async function iosSendChunk(blob, uploadId, mimeType) {
 }
 
 async function iosUploadFileInChunks(file) {
+  // Krev gyldig kode også for manuell opplasting
+  const unlockedCode = getUnlockedCode();
+  if (!unlockedCode) {
+    iosSetStatus('Låst: skriv inn gyldig kode for å laste opp.');
+    throw new Error('locked');
+  }
+
   const uploadId = (self.crypto?.randomUUID?.() || String(Date.now()) + '-' + Math.random().toString(36).slice(2));
   let offset = 0, sent = 0;
 
@@ -230,13 +268,13 @@ async function iosUploadFileInChunks(file) {
     offset += chunk.size;
     sent += chunk.size;
     iosSetProgress(sent / file.size);
-    iosSetStatus(`Laster opp… ${Math.round(100 * sent / file.size)}%`);
+    iosSetStatus(`Laster opp… ${Math.round(100 * sent / file.size)}% (kode: ${unlockedCode})`);
   }
 
   const res = await fetch(ENDPOINT_FINISH, {
     method: 'POST',
     headers: { 'Content-Type':'application/json' },
-    body: JSON.stringify({ uploadId, durationMs: 0 })
+    body: JSON.stringify({ uploadId, durationMs: 0, code: unlockedCode })
   });
   if (!res.ok) throw new Error('finish failed');
 
@@ -247,14 +285,20 @@ iosBtn.addEventListener('click', async () => {
   const file = iosFileInput.files?.[0];
   if (!file) { iosSetStatus('Velg en videofil først.'); return; }
 
+  // Krev gyldig kode før opplasting
+  if (!getUnlockedCode()) {
+    iosSetStatus('Låst: skriv inn gyldig kode for å laste opp.');
+    return;
+  }
+
   iosBtn.disabled = true; iosSetProgress(0); iosSetStatus('Starter opplasting…');
   try {
     const result = await iosUploadFileInChunks(file);
     iosSetProgress(1);
     iosSetStatus(`Ferdig! ${result.url}`);
   } catch (e) {
-    console.error(e);
-    iosSetStatus(`Feil: ${e.message}`);
+    if (e.message !== 'locked') console.error(e);
+    if (e.message !== 'locked') iosSetStatus(`Feil: ${e.message}`);
   } finally {
     iosBtn.disabled = false;
   }

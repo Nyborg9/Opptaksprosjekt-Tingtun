@@ -10,7 +10,7 @@ import Database from 'better-sqlite3';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// --- konfig ---
+// --- config ---
 const PORT = process.env.PORT || 3001;
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -37,22 +37,58 @@ CREATE INDEX IF NOT EXISTS idx_rec_owner_created ON recordings(owner_id, created
 
 // --- app ---
 const app = express();
-app.use(cors({ origin: true }));       // tillat localhost-oppsett
+app.use(cors({ origin: true }));
 app.use(express.json());
 app.use('/uploads', express.static(UPLOAD_DIR));
 
-// Demo: én "owner". Bytt til ekte auth senere.
+// Demo: single "owner"
 function getOwnerId(req) { return 'demo-user'; }
 
-// --- Én-fil opplasting (/upload) ---
+// helpers
+const ALLOWED_CODES = new Set(['test1','test2','test3']);
+
+function sanitizeName(name) {
+  // keep letters, numbers, dash, underscore, dot; collapse spaces; trim length
+  const n = name
+    .replace(/[/\\<>:"|?*\u0000-\u001F]/g, '-')   // forbidden on many FS
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 200);
+  return n || 'file';
+}
+
+function ensureUniqueFilename(dir, base) {
+  const { name, ext } = path.parse(base);
+  let candidate = base;
+  let i = 1;
+  while (fs.existsSync(path.join(dir, candidate))) {
+    candidate = `${name}-${i}${ext}`;
+    i++;
+  }
+  return candidate;
+}
+
+function extFromMime(mime) {
+  if (!mime) return '.bin';
+  if (mime.includes('webm')) return '.webm';
+  if (mime.includes('mp4')) return '.mp4';
+  if (mime.includes('quicktime')) return '.mov';
+  return '.bin';
+}
+
+// --- Single-file upload (/upload) ---
+// Use the client-provided filename (already sent by your main.js) instead of UUID.
 const diskStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
   filename: (req, file, cb) => {
-    const id = uuidv4();
-    const ext = path.extname(file.originalname) || '.webm';
-    cb(null, `${id}${ext}`);
+    // file.originalname will be like "test1-2025-10-09T12-34-56-789Z.webm"
+    const safe = sanitizeName(file.originalname || `upload${extFromMime(file.mimetype)}`);
+    const unique = ensureUniqueFilename(UPLOAD_DIR, safe);
+    cb(null, unique);
   }
 });
+
 const upload = multer({
   storage: diskStorage,
   limits: { fileSize: 2 * 1024 * 1024 * 1024 } // 2GB
@@ -60,7 +96,7 @@ const upload = multer({
 
 app.post('/upload', upload.single('file'), (req, res) => {
   try {
-    const id = path.parse(req.file.filename).name;
+    const id = uuidv4(); // logical ID for DB; filename is now human-friendly
     const url = `/uploads/${req.file.filename}`;
     const mimeType = req.body.mimeType || req.file.mimetype || 'video/webm';
     const durationMs = Number(req.body.durationMs || 0);
@@ -71,31 +107,32 @@ app.post('/upload', upload.single('file'), (req, res) => {
       VALUES(?, ?, ?, ?, ?, ?)
     `).run(id, ownerId, url, mimeType, req.file.size, durationMs);
 
-    res.json({ id, url });
+    res.json({ id, url, filename: req.file.filename });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Store failed' });
   }
 });
 
-// --- Chunket opplasting (/upload/chunk + /upload/finish) ---
+// --- Chunked upload (/upload/chunk + /upload/finish) ---
 const memUpload = multer({ storage: multer.memoryStorage() });
 
 const inprogress = new Map();      // uploadId -> fs.WriteStream
 const inprogressMeta = new Map();  // uploadId -> { ownerId, startedAt, mimeType, filename }
 
 app.post('/upload/chunk', memUpload.single('chunk'), (req, res) => {
-  const { uploadId, mimeType } = req.body || {};
+  const { uploadId, mimeType, code } = req.body || {};
   if (!uploadId || !req.file) return res.status(400).json({ error: 'bad request' });
 
   let meta = inprogressMeta.get(uploadId);
   if (!meta) {
     const ownerId = getOwnerId(req);
-    const ext =
-      mimeType?.includes('webm') ? '.webm' :
-      mimeType?.includes('mp4')  ? '.mp4'  :
-      mimeType?.includes('quicktime') ? '.mov' : '.bin';
-    const filename = `${uploadId}${ext}`;
+    const ext = extFromMime(mimeType);
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    const prefix = ALLOWED_CODES.has((code||'').toLowerCase()) ? code.toLowerCase() : 'screen-recording';
+    const desired = sanitizeName(`${prefix}-${ts}${ext}`);
+    const filename = ensureUniqueFilename(UPLOAD_DIR, desired);
+
     meta = { ownerId, startedAt: Date.now(), mimeType: mimeType || 'application/octet-stream', filename };
     inprogressMeta.set(uploadId, meta);
   }
@@ -108,7 +145,7 @@ app.post('/upload/chunk', memUpload.single('chunk'), (req, res) => {
   }
 
   handle.write(req.file.buffer);
-  res.json({ ok: true });
+  res.json({ ok: true, filename: meta.filename });
 });
 
 app.post('/upload/finish', (req, res) => {
@@ -121,11 +158,10 @@ app.post('/upload/finish', (req, res) => {
   inprogress.delete(uploadId);
 
   const filepath = path.join(UPLOAD_DIR, meta.filename);
-
   const stats = fs.statSync(filepath);
   const url = `/uploads/${meta.filename}`;
   const { ownerId } = meta;
-  const id = uploadId;
+  const id = uploadId; // keep uploadId as DB key for chunked uploads
 
   db.prepare(`
     INSERT INTO recordings(id, owner_id, url, mime_type, bytes, duration_ms)
@@ -134,7 +170,7 @@ app.post('/upload/finish', (req, res) => {
   `).run(id, ownerId, url, meta.mimeType, stats.size, Number(durationMs));
 
   inprogressMeta.delete(uploadId);
-  res.json({ id, url });
+  res.json({ id, url, filename: meta.filename });
 });
 
 app.listen(PORT, () => console.log(`SQLite-backend kjører på http://localhost:${PORT}`));

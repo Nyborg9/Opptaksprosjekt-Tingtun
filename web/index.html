@@ -10,29 +10,61 @@
     button { padding: 0.6rem 1rem; font-size: 1rem; }
     #status { margin-left: 0.5rem; font-weight: 600; }
     video { width: 100%; max-width: 900px; border: 1px solid #ddd; border-radius: 8px; }
+    .hidden { display: none !important; }
+
+    /* Unlock-kort */
+    .card { border: 1px solid #ddd; border-radius: 10px; padding: 1rem; max-width: 900px; margin-bottom: 1.25rem; }
+    .row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+    .statusline { min-height: 1.2em; color:#555; }
+    .ok { color:#0a7a33; }
+    .err { color:#b00020; }
+    input[type="password"] { padding: .5rem .75rem; font-size: 1rem; border:1px solid #ddd; border-radius:8px; }
   </style>
 </head>
 <body>
   <h1>Opptak av test</h1>
-  <div class="controls">
-    <button id="startBtn">Start Opptak</button>
-    <button id="stopBtn" disabled>Stopp & Last opp</button>
-    <label>
-      <input type="checkbox" id="sysAudioToggle"> Ta opp systemlyd
-    </label>
-    <span id="status"></span>
-  </div>
 
-  <h2>Last opp skjermopptak</h2>
-  <input id="iosFile" type="file" accept="video/*" />
-  <div id="iosProgress" style="height:8px;background:#eee;width:100%;margin-top:8px;">
-    <div id="iosBar" style="height:100%;width:0%;background:#4caf50;"></div>
+  <!-- Låse-kort -->
+  <section id="unlockCard" class="card">
+    <strong>Legg inn kode for å låse opp opptak</strong>
+    <form id="unlockForm" class="row" autocomplete="off">
+      <label for="unlockCode" class="visually-hidden" style="position:absolute;left:-9999px;">Kode</label>
+      <input id="unlockCode" type="password" placeholder="Kode" required />
+      <button id="unlockBtn" type="submit">Lås opp</button>
+      <button id="lockBtn" type="button" class="hidden">Lås</button>
+    </form>
+    <div id="unlockMsg" class="statusline">Demo: bruk <code>test1</code></div>
+  </section>
+
+  <!-- Alt opptaks/opplastings-UI -->
+  <div id="recWrap" class="hidden" aria-hidden="true">
+    <div class="controls">
+      <button id="startBtn">Start Opptak</button>
+      <button id="stopBtn" disabled>Stopp & Last opp</button>
+      <label>
+        <input type="checkbox" id="sysAudioToggle"> Ta opp systemlyd
+      </label>
+      <span id="status"></span>
+    </div>
+
+    <video id="preview" playsinline controls></video>
+
+    <h2>Last opp skjermopptak</h2>
+    <input id="iosFile" type="file" accept="video/*" />
+    <div id="iosProgress" style="height:8px;background:#eee;width:100%;margin-top:8px;">
+      <div id="iosBar" style="height:100%;width:0%;background:#4caf50;"></div>
+    </div>
+    <div id="iosStatus" style="margin-top:8px;"></div>
+    <button id="iosUploadBtn">Last opp video</button>
   </div>
-  <div id="iosStatus" style="margin-top:8px;"></div>
-  <button id="iosUploadBtn">Last opp video</button>
 
   <!-- RecordRTC (CDN) -->
   <script src="https://cdn.webrtc-experiment.com/RecordRTC.js"></script>
+
+  <!-- Lås-/opplås-logikk -->
+  <script src="./unlock.js"></script>
+
+  <!-- Din opprinnelige opptakslogikk -->
   <script src="./main.js"></script>
 </body>
 </html>
