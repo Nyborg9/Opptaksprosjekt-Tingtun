@@ -10,14 +10,33 @@ const sysAudioToggle = document.getElementById('sysAudioToggle');
 
 function setStatus(t=''){ statusEl.textContent = t; }
 
+// keep filenames/IDs safe
+function sanitizeCode(code) {
+  return String(code || '').trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '-').slice(0, 60);
+}
+
 let rec = null;
 let up  = null;
+let chunkCount = 0;
 
 async function start() {
   startBtn.disabled = true; stopBtn.disabled = true;
   try {
-    // 1) Uploader
-    up = createChunkUploader?.({ maxPending: 2 });
+    // require an unlock code (stored by unlock.js)
+    const codeRaw = sessionStorage.getItem('unlockToken');
+    const code = sanitizeCode(codeRaw);
+    if (!code) {
+      setStatus('Opptak er låst. Skriv inn kode for å låse opp.');
+      startBtn.disabled = false;
+      return;
+    }
+
+    // stable, readable uploadId => becomes filename stem on server
+    const suffix = Math.random().toString(36).slice(2, 6);
+    const uploadId = `${code}-${Date.now()}-${suffix}`;
+
+    // 1) Uploader (sequential to preserve order for direct-append backend)
+    up = createChunkUploader?.({ maxPending: 1, uploadId });
     if (!up || typeof up.start !== 'function') {
       console.error('Uploader missing. createChunkUploader =', createChunkUploader);
       setStatus('Init-feil: uploader mangler (sjekk import/sti).');
@@ -27,12 +46,14 @@ async function start() {
     await up.start();
 
     // 2) Recorder
+    chunkCount = 0;
     rec = await startRecorder({
       wantSystemAudio: !!(sysAudioToggle?.checked),
       timesliceMs: 3000,
       previewEl: preview,
       onStatus: setStatus,
       onChunk: async (blob, mimeType) => {
+        const idx = chunkCount++;
         await up.push(blob, mimeType, {
           onBackpressurePause: () => rec.pause(),
           onBackpressureResume: () => rec.resume()
@@ -51,8 +72,9 @@ async function start() {
 async function stop() {
   stopBtn.disabled = true;
   try {
+    rec?.flush?.();           // force last partial chunk
     rec?.stop();
-    await new Promise(r => setTimeout(r, 50));
+    await new Promise(r => setTimeout(r, 150)); // let ondataavailable fire
     const durationMs = rec?.getDurationMs?.() || 0;
     const result = await up?.finalize(durationMs);
     setStatus(`Opplastet! URL: ${result?.url || '(ukjent)'}`);
@@ -60,6 +82,7 @@ async function stop() {
     console.error(e);
     setStatus(`Feil under stopp: ${e.message}`);
   } finally {
+    chunkCount = 0;
     cleanup();
   }
 }
@@ -85,10 +108,16 @@ stopBtn.addEventListener('click', stop);
   }
 })();
 
-// Wire the manual/iOS uploader
+// Wire the manual/iOS uploader — also name files using the unlock code if present
 wireFileUploader({
   inputEl: document.getElementById('iosFile'),
   buttonEl: document.getElementById('iosUploadBtn'),
   statusEl: document.getElementById('iosStatus'),
-  progressBarEl: document.getElementById('iosBar')
+  progressBarEl: document.getElementById('iosBar'),
+  getUploadId: () => {
+    const code = sanitizeCode(sessionStorage.getItem('unlockToken'));
+    if (!code) return undefined; // fall back to random id
+    const suffix = Math.random().toString(36).slice(2, 6);
+    return `${code}-${Date.now()}-${suffix}`;
+  }
 });
