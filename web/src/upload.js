@@ -1,22 +1,35 @@
-import { BASE_URL } from './config.js';
+import { API_BASE } from './config.js';
 
-const ENDPOINT_CHUNK  = `${BASE_URL}/upload/chunk`;
-const ENDPOINT_FINISH = `${BASE_URL}/upload/finish`;
+const ENDPOINT_CHUNK  = `${API_BASE}/upload/chunk`;
+const ENDPOINT_FINISH = `${API_BASE}/upload/finish`;
 
 function newUploadId() {
-  return (self.crypto?.randomUUID?.() || String(Date.now()) + '-' + Math.random().toString(36).slice(2));
+  return (
+    self.crypto?.randomUUID?.() ||
+    String(Date.now()) + '-' + Math.random().toString(36).slice(2)
+  );
 }
 
-/**
- * Uploader with backpressure and optional fixed uploadId.
- * For direct-append backend, keep maxPending=1 (sequential).
- */
-export function createChunkUploader({ maxPending = 1, uploadId: fixedId } = {}) {
+function getTokenPartsOrThrow() {
+  const tok = sessionStorage.getItem('authToken'); // << new key
+  if (!tok) {
+    const err = new Error('NO_TOKEN');
+    err.code = 'LOCKED';
+    throw err;
+  }
+  return {
+    headers: { 'x-unlock-token': tok },
+    qs: `?token=${encodeURIComponent(tok)}`
+  };
+}
+
+export function createChunkUploader({ maxPending = 1, uploadId: fixedId, slot = 1 } = {}) {
   let uploadId = null;
   let nextIndex = 0;
   let pending = 0;
 
   async function start() {
+    if (![1,2,3].includes(slot)) throw new Error('slot must be 1, 2 or 3');
     uploadId = fixedId || newUploadId();
     nextIndex = 0;
     pending = 0;
@@ -29,7 +42,11 @@ export function createChunkUploader({ maxPending = 1, uploadId: fixedId } = {}) 
     form.append('uploadId', uploadId);
     form.append('mimeType', mimeType);
     form.append('index', String(index));
-    const res = await fetch(ENDPOINT_CHUNK, { method: 'POST', body: form });
+    form.append('slot', String(slot));
+
+    const { headers, qs } = getTokenPartsOrThrow();
+    const res = await fetch(`${ENDPOINT_CHUNK}${qs}`, { method: 'POST', headers, body: form });
+    if (res.status === 403) throw Object.assign(new Error('Locked'), { code: 'LOCKED' });
     if (!res.ok) throw new Error(`chunk failed: ${res.status}`);
   }
 
@@ -61,16 +78,16 @@ export function createChunkUploader({ maxPending = 1, uploadId: fixedId } = {}) 
     const form = new FormData();
     form.append('uploadId', uploadId);
     form.append('durationMs', String(durationMs));
+    form.append('slot', String(slot));
 
-    console.log('[finalize] endpoint', ENDPOINT_FINISH, 'uploadId=', uploadId, 'durationMs=', durationMs);
-
-    const res = await fetch(ENDPOINT_FINISH, { method: 'POST', body: form });
-    console.log('[finalize] got response?', res && res.status);
+    const { headers, qs } = getTokenPartsOrThrow();
+    const res = await fetch(`${ENDPOINT_FINISH}${qs}`, { method: 'POST', headers, body: form });
+    if (res.status === 403) throw Object.assign(new Error('Locked'), { code: 'LOCKED' });
     if (!res.ok) {
       const text = await res.text().catch(() => '');
       throw new Error(`finish failed: ${res.status} ${text}`);
     }
-    return res.json(); // { id, url }
+    return res.json();
   }
 
   return { start, push, flush, finalize, get uploadId() { return uploadId; } };
