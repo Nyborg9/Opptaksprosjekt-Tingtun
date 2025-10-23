@@ -1,21 +1,9 @@
-# Stage 1: grab static ffmpeg/ffprobe (no deps)
-FROM mwader/static-ffmpeg:8.0 AS ffmpegbin
-
-# Stage 2: your app
 FROM node:20-bookworm-slim
 WORKDIR /app
 
-# Copy only the binaries
-COPY --from=ffmpegbin /ffmpeg  /usr/local/bin/ffmpeg
-COPY --from=ffmpegbin /ffprobe /usr/local/bin/ffprobe
-ENV PATH="/usr/local/bin:${PATH}"
-
-# App deps
-COPY package.json ./
-COPY package-lock.json* ./
+COPY package.json package-lock.json* ./
 RUN if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
 
-# App code + dirs
 COPY . .
 RUN mkdir -p /app/uploads /app/data /app/staging
 
