@@ -1,35 +1,37 @@
-// iOS (and general file) chunk uploader using the same uploader core.
 import { createChunkUploader } from './upload.js';
 
 export function wireFileUploader({
-  inputEl,        // <input type="file" id="iosFile">
-  buttonEl,       // <button id="iosUploadBtn">
-  statusEl,       // <span id="iosStatus">
-  progressBarEl,  // <div id="iosBar"> (width will be set)
-  chunkSize = 5 * 1024 * 1024, // 5 MB
-  getUploadId     // optional: function that returns a custom uploadId (e.g., from unlock code)
+  inputEl,
+  buttonEl,
+  statusEl,
+  progressBarEl,
+  chunkSize = 5 * 1024 * 1024,
+  getUploadId,
+  slot = 1
 }) {
   if (!inputEl || !buttonEl) return;
 
-  const setStatus  = (t='') => { if (statusEl) statusEl.textContent = t; };
+  const setStatus   = (t='') => { if (statusEl) statusEl.textContent = t; };
   const setProgress = f => { if (progressBarEl) progressBarEl.style.width = `${Math.round(f*100)}%`; };
 
   buttonEl.addEventListener('click', async () => {
     const file = inputEl.files?.[0];
     if (!file) { setStatus('Velg en videofil først.'); return; }
 
+    const token = sessionStorage.getItem('unlockToken');
+    if (!token) { setStatus('Opplasting krever opplåsing først.'); return; }
+
     buttonEl.disabled = true;
     setProgress(0);
     setStatus('Starter opplasting…');
 
     const customId = getUploadId?.();
-    const up = createChunkUploader({ maxPending: 1, uploadId: customId });
+    const up = createChunkUploader({ maxPending: 1, uploadId: customId, slot });
     await up.start();
 
     try {
       let offset = 0;
       while (offset < file.size) {
-        // slice without loading into JS memory
         const chunk = file.slice(offset, offset + chunkSize);
         await up.push(chunk, file.type || 'application/octet-stream');
         offset += chunk.size;
@@ -37,7 +39,7 @@ export function wireFileUploader({
         setStatus(`Laster opp… ${Math.round(100 * offset / file.size)}%`);
       }
 
-      const result = await up.finalize(0); // { id, url }
+      const result = await up.finalize(0);
       setProgress(1);
       setStatus(`Ferdig! ${result.url}`);
     } catch (e) {
