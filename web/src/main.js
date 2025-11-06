@@ -23,7 +23,7 @@ async function start(slot) {
   stopBtn.disabled = true;
 
   try {
-    const token = sessionStorage.getItem('authToken'); // << new key
+    const token = sessionStorage.getItem('authToken') || sessionStorage.getItem('unlockToken');
     if (!token) {
       setStatus('Opptak er låst. Skriv inn kode for å låse opp.');
       setStartButtonsDisabled(false);
@@ -121,7 +121,6 @@ stopBtn.addEventListener('click', stop);
   });
 })();
 
-// Manual/iOS uploader
 wireFileUploader({
   inputEl: document.getElementById('iosFile'),
   buttonEl: document.getElementById('iosUploadBtn'),

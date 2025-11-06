@@ -7,17 +7,14 @@ function newUploadId() {
   return self.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-function getTokenPartsOrThrow() {
+function getTokenHeaderOrThrow() {
   const tok = sessionStorage.getItem('authToken') || sessionStorage.getItem('unlockToken');
   if (!tok) {
     const err = new Error('NO_TOKEN');
     err.code = 'LOCKED';
     throw err;
   }
-  return {
-    headers: { 'x-unlock-token': tok },
-    qs: `?token=${encodeURIComponent(tok)}`
-  };
+  return { 'x-unlock-token': tok };
 }
 
 export function createChunkUploader({ maxPending = 1, uploadId: fixedId, slot = 1 } = {}) {
@@ -38,8 +35,8 @@ export function createChunkUploader({ maxPending = 1, uploadId: fixedId, slot = 
     form.append('index', String(index));
     form.append('slot', String(slot));
 
-    const { headers, qs } = getTokenPartsOrThrow();
-    const res = await fetch(`${ENDPOINT_CHUNK}${qs}`, { method: 'POST', headers, body: form });
+    const headers = getTokenHeaderOrThrow();
+    const res = await fetch(ENDPOINT_CHUNK, { method: 'POST', headers, body: form });
     if (res.status === 403) throw Object.assign(new Error('Locked'), { code: 'LOCKED' });
     if (!res.ok) throw new Error(`chunk failed: ${res.status}`);
   }
@@ -63,10 +60,10 @@ export function createChunkUploader({ maxPending = 1, uploadId: fixedId, slot = 
     form.append('uploadId', uploadId);
     form.append('durationMs', String(durationMs));
     form.append('slot', String(slot));
-    const { headers, qs } = getTokenPartsOrThrow();
-    const res = await fetch(`${ENDPOINT_FINISH}${qs}`, { method: 'POST', headers, body: form });
+    const headers = getTokenHeaderOrThrow();
+    const res = await fetch(ENDPOINT_FINISH, { method: 'POST', headers, body: form });
     if (res.status === 403) throw Object.assign(new Error('Locked'), { code: 'LOCKED' });
-    if (!res.ok) throw new Error(`finish failed: ${res.status} ${await res.text().catch(()=> '')}`);
+    if (!res.ok) throw new Error(`finish failed: ${res.status}`); // avoid echoing body
     return res.json();
   }
 

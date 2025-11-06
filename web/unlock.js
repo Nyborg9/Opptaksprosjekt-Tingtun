@@ -1,8 +1,4 @@
-// unlock.js — uses server-issued tokens only & new key "authToken"
 import { API_BASE } from './src/config.js';
-
-// Kill any stale demo key from old code
-try { sessionStorage.removeItem('unlockToken'); } catch {}
 
 const unlockCard = document.getElementById('unlockCard');
 const unlockForm = document.getElementById('unlockForm');
@@ -71,7 +67,7 @@ unlockForm.addEventListener('submit', async (e) => {
     });
     const data = await res.json();
     if (res.ok && data.ok && data.token) {
-      sessionStorage.setItem('authToken', data.token); // << store server token here
+      sessionStorage.setItem('authToken', data.token);
       setLockedState(false);
     } else {
       unlockMsg.textContent = 'Feil kode.';

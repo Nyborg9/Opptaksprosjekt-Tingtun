@@ -10,10 +10,6 @@ function bestMimeType() {
   return 'video/webm';
 }
 
-/**
- * Starts recording and emits small chunks via onChunk(blob, mimeType).
- * Returns { stop, cleanup }.
- */
 export async function startRecorder({
   wantSystemAudio = false,
   timesliceMs = 3000,
@@ -37,7 +33,6 @@ export async function startRecorder({
   const micTrack = micStream.getAudioTracks()[0] || null;
   if (!vTrack) throw new Error('Fant ikke videostrøm fra skjermdeling.');
 
-  // Mix mic + system if both present
   let audioCtx = null, audioDest = null, mixedAudioTrack = null;
   if (sysTrack && micTrack) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -79,7 +74,6 @@ export async function startRecorder({
   recorder.onstart = () => onStatus?.('Tar opp …');
   recorder.onerror = (e) => onStatus?.(`Feil i opptaker: ${e.error?.message || e.message || e.name}`);
 
-  // Let caller control backpressure by pausing/resuming these:
   function pause()  { try { if (recorder.state === 'recording') recorder.pause(); } catch {} }
   function resume() { try { if (recorder.state === 'paused')   recorder.resume(); } catch {} }
   
@@ -99,7 +93,6 @@ export async function startRecorder({
     if (audioCtx)  { try { audioCtx.close(); } catch {} }
   }
 
-  // Auto-stop when the user stops sharing
   vTrack.onended = () => stop();
 
   recorder.start(timesliceMs);

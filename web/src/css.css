@@ -1,0 +1,232 @@
+*{
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Poppins', sans-serif;  
+}
+.header {
+  background-color: #78dadd;
+  box-shadow: 1px 1px 4px 1px rgba(0,0,0,.1);
+  position: absolute;
+  width: 100%;
+  z-index: 3;
+  height: auto;
+  PADDING: 0.5% 4% 0% 4%;
+}
+
+.header ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: auto;
+  background-color: #78dadd;
+}
+
+.header li a {
+  color: #111;
+  display: inline;
+  padding: 20px 20px;
+  text-decoration: none;
+  font-size:20px;
+  float: left;
+}
+
+.header li a:hover,
+.header .menu-btn:hover {
+  color: #111;
+  background: #fff;
+  border-color: black;
+  border-style: solid;
+  
+}
+.header li a:active,
+.header .menu-btn:active {
+  color: #111;
+  background: #fff;
+  border-color: black;
+  border-style: solid;
+  
+}
+.header li a:focus, 
+.header .menu-btn:focus {
+  color: #111;
+  background: #fff;
+  border-color: black;
+  border-style: solid;
+  
+}
+
+.header .logo a {
+  display: block;
+  float: left;
+  font-size: 35px;
+  font-weight: 550;
+  padding: 10px 20px;
+  text-decoration: none;
+  color: black;
+}
+
+.header .logo-img{
+  float: left;
+}
+
+/* menu */
+
+.header .menu {
+  clear: both;
+  max-height: auto;
+  font-size: 18px;
+  flex-wrap: wrap;
+  display: inline;
+  color:black;
+  transition: max-height .2s ease-out;
+}
+
+/* menu icon */
+
+.header .menu-icon {
+  cursor: pointer;
+  display: inline-block;
+  float: right;
+  padding: 28px 20px;
+  position: relative;
+  user-select: none;
+}
+
+.header .menu-icon .navicon {
+  background: rgb(8, 8, 8);
+  display: block;
+  height: 2px;
+  position: relative;
+  transition: background .2s ease-out;
+  width: 18px;
+}
+
+.header .menu-icon .navicon:before,
+.header .menu-icon .navicon:after {
+  background: rgb(5, 5, 5);
+  content: '';
+  display: block;
+  height: 100%;
+  position: absolute;
+  transition: all .2s ease-out;
+  width: 100%;
+}
+
+.header .menu-icon .navicon:before {
+  top: 5px;
+}
+
+.header .menu-icon .navicon:after {
+  top: -5px;
+}
+
+.row {  
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: auto;
+  line-height: 2;
+  font-family: 'Poppins', sans-serif;
+  padding-top: 80px;
+  padding-left: 10px;
+}
+p {
+  margin-left: 5px;
+}
+
+/* Create two unequal columns that sits next to each other */
+/* Sidebar/left column */
+.side {
+  flex: 30%;
+  margin-top:50px;
+  vertical-align: top;
+}  
+.side .img {
+vertical-align: middle;
+margin: 10px 5%;
+}
+.side .img :focus {
+  outline: solid 3px;
+  max-width: 100%;
+  height: auto;
+}
+
+.side .plan {
+  border-style: solid;
+  padding: 5px;
+  width: 95%;
+  margin-bottom: 10px;
+}
+
+.side .plan ul{
+  padding-left: 20px;
+}
+
+/* Main column */
+.main {
+  flex: 70%;
+ 
+}
+
+/*Main på testfest siden */
+.main .testfest{
+margin-right: 25px;
+}
+
+/* Task under Main på testfest */
+.main .task{
+  background-color: #eeeeee;
+  padding: 2em 3em;
+  margin-top: 2em;
+  color: black;
+}
+.main .task ul li,.main .task ol a {
+  margin-left: 40px;
+}
+
+/* Responsive layout - when the screen is less than 700px wide, make the two columns stack on top of each other instead of next to each other */
+@media screen and (max-width: 700px) {
+  .row, .header-right {   
+    flex-direction: column;
+  }
+  .side{
+    padding-top: 20px !important;
+  }
+}
+
+
+
+
+
+ /* dark and light mode */
+ #darkmode{
+  position: absolute;
+  right: 10px;
+  top: 85px;
+  font-size: medium;
+ }
+  [data-theme="light"] {
+    background-color: white;
+    }
+    [data-theme="light"] .row .main .testfest .task a{
+      color: #3E0BA2;
+    }
+
+
+    [data-theme="dark"] {
+    background-color: black;
+    color: white;
+    }
+    [data-theme="dark"] .main a {
+      color: #ffb6c1;
+      }
+      [data-theme="dark"] .row .main .testfest .task a{
+        color: #3E0BA2;
+      }
+
+
+
+
+
+
+
