@@ -1,3 +1,4 @@
+// unlock.js
 import { API_BASE } from './src/config.js';
 
 const unlockCard = document.getElementById('unlockCard');
@@ -45,10 +46,14 @@ async function tryAutoUnlock() {
   const tok = sessionStorage.getItem('authToken');
   if (!tok) return setLockedState(true);
   try {
-    const r = await fetch(`${API_BASE}/api/whoami?token=${encodeURIComponent(tok)}`);
-    const j = await r.json().catch(()=> ({}));
+    const r = await fetch(`${API_BASE}/whoami`, {
+      headers: { 'x-unlock-token': tok }
+    });
+    const j = await r.json().catch(() => ({}));
     setLockedState(!(j && j.ok));
-  } catch { setLockedState(true); }
+  } catch {
+    setLockedState(true);
+  }
 }
 
 unlockForm.addEventListener('submit', async (e) => {
@@ -60,12 +65,14 @@ unlockForm.addEventListener('submit', async (e) => {
   unlockMsg.className = 'statusline';
 
   try {
-    const res = await fetch(`${API_BASE}/api/unlock`, {
+    const res = await fetch(`${API_BASE}/unlock`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code })
     });
-    const data = await res.json();
+
+    const data = await res.json().catch(() => ({}));
+
     if (res.ok && data.ok && data.token) {
       sessionStorage.setItem('authToken', data.token);
       setLockedState(false);
