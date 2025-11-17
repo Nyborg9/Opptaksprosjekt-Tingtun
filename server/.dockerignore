@@ -1,6 +1,7 @@
 node_modules
-npm-debug.log
 uploads
+staging
 data
-data.sqlite
+npm-debug.log
 .DS_Store
+.git

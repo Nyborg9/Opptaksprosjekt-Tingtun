@@ -6,7 +6,6 @@ import fsp from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
-import cors from 'cors';
 import crypto from 'crypto';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -28,14 +27,6 @@ const app = express();
 // Security headers
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'same-site' } }));
 
-app.use(cors({
-  origin: ['http://localhost:8080'],
-  methods: ['GET','POST','OPTIONS'],
-  allowedHeaders: ['Content-Type', 'x-unlock-token'],
-  maxAge: 86400
-}));
-app.options('*', cors());
-
 app.use(express.json());
 
 // Serve uploads safely (discourage inline execution)
@@ -48,6 +39,7 @@ app.use('/uploads', express.static(UPLOAD_DIR, {
 }));
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
+app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
 const CODE_TO_USER = new Map([
   [(process.env.UNLOCK_CODE_1 || 'test1'), 'User1'],
@@ -133,7 +125,7 @@ const uploadSingle = multer({
     cb(ok ? null : new Error('Unsupported media type'));
   }
 });
-app.post('/upload', requireUnlock, uploadSingle.single('file'), (req, res) => {
+app.post('/api/upload', requireUnlock, uploadSingle.single('file'), (req, res) => {
   try {
     const url = `/uploads/${req.file.filename}`;
     res.json({ id: path.parse(req.file.filename).name, url });
@@ -155,7 +147,7 @@ const memUpload = multer({
 // uploadId -> session state
 const inFlight = new Map();
 
-app.post('/upload/chunk', requireUnlock, memUpload.single('chunk'), async (req, res) => {
+app.post('/api/upload/chunk', requireUnlock, memUpload.single('chunk'), async (req, res) => {
   try {
     const { uploadId, mimeType } = req.body || {};
     const idx  = Number.isFinite(+req.body?.index) ? Number(req.body.index) : null;
@@ -208,7 +200,7 @@ app.post('/upload/chunk', requireUnlock, memUpload.single('chunk'), async (req, 
   }
 });
 
-app.post('/upload/finish', requireUnlock, memUpload.none(), async (req, res) => {
+app.post('/api/upload/finish', requireUnlock, memUpload.none(), async (req, res) => {
   try {
     const uploadId   = req.body?.uploadId;
     const slot       = Number(req.body?.slot || 0);
@@ -251,7 +243,7 @@ app.post('/upload/finish', requireUnlock, memUpload.none(), async (req, res) => 
   }
 });
 
-app.get('/recordings', requireUnlock, async (_req, res) => {
+app.get('/api/recordings', requireUnlock, async (_req, res) => {
   try {
     const files = await fsp.readdir(UPLOAD_DIR);
     const items = await Promise.all(files.map(async name => {
