@@ -1,21 +1,45 @@
+# Bruker et lettvekts Node.js 20 image basert på Debian Bookworm.
 FROM node:20-bookworm-slim
 
+# Setter miljøvariabler:
+# - NODE_ENV=production optimaliserer Node for produksjon
+# - PORT=3001 definerer porten serveren lytter på
+# - UPLOAD_DIR brukes av server.js til å vite hvor filer skal lagres
 ENV NODE_ENV=production \
     PORT=3001 \
     UPLOAD_DIR=/app/uploads
 
+# Setter arbeidskatalogen inne i containeren
 WORKDIR /app
 
+# Kopierer avhengighetsfiler først slik at Docker kan cache npm-install.
 COPY package.json package-lock.json* ./
+
+# Installerer avhengigheter og fjerner devDependencies (--omit=dev) for en slank produksjonspakke
 RUN if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
 
+# Oppretter en ikke-root bruker for bedre sikkerhet
 RUN groupadd -r nodeapp && useradd -r -g nodeapp nodeapp
+
+# Kopierer resten av prosjektfilene inn i containeren
+# Endrer eierskap til nodeapp:nodeapp for trygg filtilgang
 COPY --chown=nodeapp:nodeapp . .
 
+# Lager nødvendige kataloger og sørger for korrekt eierskap
+# - uploads: ferdige opplastinger
+# - data: brukes for tokens.
+# - staging: brukes av chunk-opplastingssystemet
 RUN mkdir -p /app/uploads /app/data /app/staging && chown -R nodeapp:nodeapp /app
+
+# Kjører prosessen som ikke-root bruker fra nå av
 USER nodeapp
 
+# Eksponerer port 3001 (internt for Docker-compose / Nginx)
 EXPOSE 3001
+
+# Healthcheck som kaller serverens /health-endepunkt hvert 30. sekund
+# Hvis responsen mangler eller ikke er OK → container markeres som unhealthy
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD node -e "fetch('http://127.0.0.1:3001/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
 
+# Standardkommando: start Node-serveren
 CMD ["node", "server.js"]

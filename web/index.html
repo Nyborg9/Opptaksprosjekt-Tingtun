@@ -4,33 +4,32 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Opptak</title>
-  <style>
-    body { font-family: system-ui, Arial, sans-serif; margin: 2rem; }
-    .controls { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; align-items: center; }
-    button { padding: 0.6rem 1rem; font-size: 1rem; }
-    #status { margin-left: 0.5rem; font-weight: 600; }
-    video { width: 100%; max-width: 900px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 1rem; }
-    .progress { height:8px; background:#eee; width:100%; margin-top:8px; border-radius:4px; overflow:hidden; }
-    .progress > div { height:100%; width:0%; background:#4caf50; }
-    .hidden { display:none }
-    .statusline { margin-top:.5rem; font-weight:600 }
-    .statusline.ok { color: #2e7d32 }
-    .statusline.err { color: #c62828 }
-  </style>
+
+  <!-- Ekstern stilfil med all CSS -->
+  <link rel="stylesheet" href="./unlock.css">
 </head>
 <body>
 
-<section id="unlockCard">
-  <form id="unlockForm">
+  <!-- Kort for å låse opp med kode -->
+  <section id="unlockCard">
+  <form id="unlockForm" method="post" action="about:blank">
     <label for="unlockCode">Kode:</label>
-    <input id="unlockCode" name="unlockCode" autocomplete="one-time-code" required />
+    <input
+      id="unlockCode"
+      name="unlockCode"
+      autocomplete="one-time-code"
+      required
+    />
     <button id="unlockBtn" type="submit">Lås opp</button>
-    <button id="lockBtn" type="button" class="hidden">Lås</button>
   </form>
-  <div id="unlockMsg" class="statusline">Opptak er låst. Skriv inn kode for å låse opp.</div>
+
+  <div id="unlockMsg" class="statusline">
+    Opptak er låst. Skriv inn kode for å låse opp.
+  </div>
 </section>
 
-<section id="recWrap" class="hidden" aria-hidden="true">
+  <!-- Selve opptaksdelen (skjult til brukeren har låst opp) -->
+  <section id="recWrap" class="hidden" aria-hidden="true">
   <video id="preview" autoplay playsinline muted></video>
 
   <div class="controls">
@@ -38,22 +37,38 @@
     <button data-slot="2">Start Opptak 2</button>
     <button data-slot="3">Start Opptak 3</button>
     <button id="stopBtn" disabled>Stopp &amp; Last opp</button>
+
     <label>
-      <input type="checkbox" id="sysAudioToggle"> Ta opp systemlyd
+      <input type="checkbox" id="sysAudioToggle">
+      Ta opp systemlyd
     </label>
+
     <span id="status"></span>
   </div>
 
-  <h2>Last opp skjermopptak (iOS / filopplasting)</h2>
-  <input id="iosFile" type="file" accept="video/*" />
-  <div id="iosProgress" class="progress">
-    <div id="iosBar"></div>
-  </div>
-  <div id="iosStatus" style="margin-top:8px;"></div>
-  <button id="iosUploadBtn">Last opp video</button>
+  <h2>Last opp skjermopptak via filopplasting</h2>
+
+  <h3>Opptak 1</h3>
+  <input id="fileUpload1" type="file" accept="video/*" />
+  <div class="progress"><div id="fileUploadBar1"></div></div>
+  <div id="fileUploadStatus1" class="statusline"></div>
+  <button id="fileUploadBtn1">Last opp som Opptak 1</button>
+
+  <h3>Opptak 2</h3>
+  <input id="fileUpload2" type="file" accept="video/*" />
+  <div class="progress"><div id="fileUploadBar2"></div></div>
+  <div id="fileUploadStatus2" class="statusline"></div>
+  <button id="fileUploadBtn2">Last opp som Opptak 2</button>
+
+  <h3>Opptak 3</h3>
+  <input id="fileUpload3" type="file" accept="video/*" />
+  <div class="progress"><div id="fileUploadBar3"></div></div>
+  <div id="fileUploadStatus3" class="statusline"></div>
+  <button id="fileUploadBtn3">Last opp som Opptak 3</button>
 </section>
 
-<script type="module" src="./unlock.js?v=5"></script>
-<script type="module" src="./src/main.js?v=5"></script>
+  <!-- Låse-funksjonalitet og opptakslogikk -->
+  <script type="module" src="./unlock.js?v=5"></script>
+  <script type="module" src="./src/main.js?v=5"></script>
 </body>
 </html>

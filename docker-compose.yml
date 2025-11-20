@@ -1,71 +1,115 @@
 services:
   server:
+    # Bygger server-imaget fra ./server-mappen med Dockerfile der inne
     build:
       context: ./server
       dockerfile: Dockerfile
     container_name: Praksis-server
+
+    # Miljøvariabler som styrer serverens oppførsel
     environment:
-      NODE_ENV: production
-      PORT: 3001
-      TOKEN_TTL_MS: 1800000
-      UPLOAD_CHUNK_LIMIT_BYTES: 8388608
-      PER_UPLOAD_MAX_BYTES: 3221225472
-      INFLIGHT_TTL_MS: 1800000
+      NODE_ENV: production              # Kjør server i produksjonsmodus
+      PORT: 3001                        # Intern port som Node serveren starter på
+      UNLOCK_CODE_1: "${UNLOCK_CODE_1}"
+      UNLOCK_CODE_2: "${UNLOCK_CODE_2}"
+      UNLOCK_CODE_3: "${UNLOCK_CODE_3}"
+      TOKEN_TTL_MS: 7200000             # Gyldighetstid for unlock-tokens 2 timer
+      UPLOAD_CHUNK_LIMIT_BYTES: 8388608 # Maks størrelse per chunk (8 MB)
+      PER_UPLOAD_MAX_BYTES: 3221225472  # Maks størrelse per enkelt video (3 GB)
+      INFLIGHT_TTL_MS: 7200000          # Hvor lenge pågående opplastinger kan leve 2 timer
+
+    # Volumer for lagring
     volumes:
-      - server_uploads:/app/uploads
-      - server_staging:/app/staging
-      - server_data:/app/data
+      - server_uploads:/app/uploads     # Ferdige video-opplastinger
+      - server_staging:/app/staging     # Midlertidig lagring for chunked uploads
+      - server_data:/app/data           # Tokens
+
+    # Gjør containerens filsystem skrivebeskyttet
     read_only: true
+
+    # midlertidige skrivbare områder (kreves av Node/NPM/OS)
     tmpfs:
       - /tmp
+
+    # Hindrer at processen kan få nye privilegier
     security_opt:
       - no-new-privileges:true
+
+    # Fjerner alle Linux capabilities (reduserer angrepsflate)
     cap_drop:
       - ALL
+
+    # Container restartes hvis den stopper uventet
     restart: unless-stopped
+
+    # Bruk tini/init-system for å håndtere zombie-prosesser
     init: true
+
+    # Healthcheck for å verifisere at serveren svarer på /health-endepunktet
     healthcheck:
       test:
         [
           "CMD-SHELL",
           "node -e \"fetch('http://127.0.0.1:3001/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\"",
         ]
-      interval: 30s
-      timeout: 5s
-      retries: 3
+      interval: 30s   # Sjekk hver 30. sekund
+      timeout: 5s     # Timeout for healthcheck
+      retries: 3      # Marker container som unhealthy etter 3 feil
 
   web:
+    # Nginx brukes som frontend-webserver
     image: nginx:alpine
     container_name: Praksis-web
+
+    # Eksponerer port 80 inne i containeren som port 8080 på hosten
     ports:
       - "8080:80"
+
+    # Server HTML + Nginx-konfig direkte fra prosjektmappen (read-only)
     volumes:
-      - ./web:/usr/share/nginx/html:ro
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./web:/usr/share/nginx/html:ro         # Frontend-filer
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro  # Proxy-konfig
+
+    # Vent med å starte web-serveren til server er healthy
     depends_on:
       server:
         condition: service_healthy
+
+    # Kjør nginx-containeren som read-only for sikkerhet
     read_only: true
+
+    # Nginx trenger enkelte tmpfs-kataloger for runtime
     tmpfs:
       - /var/cache/nginx
       - /var/run
       - /tmp
+
+    # Hindrer privilegie-escalation
     security_opt:
       - no-new-privileges:true
+
+    # Fjern alle capabilities
     cap_drop:
       - ALL
+
+    # Legg kun til minimum for å kunne binde til port, sette brukere og eie filer
     cap_add:
       - CHOWN
       - NET_BIND_SERVICE
       - SETGID
       - SETUID
+
+    # Restart containeren automatisk ved uforutsett stopp
     restart: unless-stopped
+
+    # Healthcheck for å sjekke om Nginx serverer index.html
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null 2>&1 || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
 
+#Lagring for backend (videoer og tokens)
 volumes:
   server_uploads:
   server_staging:
