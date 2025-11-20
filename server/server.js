@@ -60,7 +60,7 @@ app.use(express.json());
 app.get('/health', (_req, res) => res.json({ ok: true }));
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
-// Hent koder KUN fra miljøvariabler (.env, docker-compose osv.)
+// Hent koder KUN fra miljøvariabler
 const UNLOCK_CODE_1 = process.env.UNLOCK_CODE_1;
 const UNLOCK_CODE_2 = process.env.UNLOCK_CODE_2;
 const UNLOCK_CODE_3 = process.env.UNLOCK_CODE_3;

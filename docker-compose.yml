@@ -4,7 +4,7 @@ services:
     build:
       context: ./server
       dockerfile: Dockerfile
-    container_name: Praksis-server
+    container_name: tingtun-opptak
 
     # Miljøvariabler som styrer serverens oppførsel
     environment:
