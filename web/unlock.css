@@ -1,0 +1,73 @@
+/* Grunnleggende layout og typografi */
+body {
+  font-family: system-ui, Arial, sans-serif;
+  margin: 2rem;
+}
+
+/* Rad med kontroller (knapper, checkbox osv.) */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  align-items: center;
+}
+
+/* Standard knappestil */
+button {
+  padding: 0.6rem 1rem;
+  font-size: 1rem;
+}
+
+/* Statuslinje ved siden av opptaksknappene */
+#status {
+  margin-left: 0.5rem;
+  font-weight: 600;
+}
+
+/* Videovisning (forhåndsvisning av skjermopptak) */
+video {
+  width: 100%;
+  max-width: 900px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+/* Fremdriftsindikator for filopplasting */
+.progress {
+  height: 8px;
+  background: #eee;
+  width: 100%;
+  margin-top: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+/* Selve “fyllet” i fremdriftsstolpen */
+.progress > div {
+  height: 100%;
+  width: 0%;
+  background: #4caf50;
+}
+
+/* Generell klasse for å skjule elementer helt */
+.hidden {
+  display: none;
+}
+
+/* Felles stil for statusmeldinger */
+.statusline {
+  margin-top: 0.5rem;
+  font-weight: 600;
+}
+
+/* Grønn status (OK / suksess) */
+.statusline.ok {
+  color: #2e7d32;
+}
+
+/* Rød status (feil / problem) */
+.statusline.err {
+  color: #c62828;
+}
