@@ -60,13 +60,17 @@ app.use(express.json());
 app.get('/health', (_req, res) => res.json({ ok: true }));
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
-// Hent koder KUN fra miljøvariabler
+// Hent koder KUN fra miljøvariabler  
 const UNLOCK_CODE_1 = process.env.UNLOCK_CODE_1;
 const UNLOCK_CODE_2 = process.env.UNLOCK_CODE_2;
 const UNLOCK_CODE_3 = process.env.UNLOCK_CODE_3;
+const UNLOCK_CODE_4 = process.env.UNLOCK_CODE_4;
+const UNLOCK_CODE_5 = process.env.UNLOCK_CODE_5;
+const UNLOCK_CODE_6 = process.env.UNLOCK_CODE_6;
+const UNLOCK_CODE_7 = process.env.UNLOCK_CODE_7;
 
 // Valider at alle er satt – feiler hardt hvis noe mangler
-if (!UNLOCK_CODE_1 || !UNLOCK_CODE_2 || !UNLOCK_CODE_3) {
+if (!UNLOCK_CODE_1 || !UNLOCK_CODE_2 || !UNLOCK_CODE_3 || !UNLOCK_CODE_4 || !UNLOCK_CODE_5 || !UNLOCK_CODE_6 || !UNLOCK_CODE_7) {
   console.error('Mangler en eller flere UNLOCK_CODE_X miljøvariabler.');
   process.exit(1); // Stopp serveren, så du ikke kjører med udefinerte koder.
 }
@@ -76,6 +80,10 @@ const CODE_TO_USER = new Map([
   [UNLOCK_CODE_1, 'Tester1'],
   [UNLOCK_CODE_2, 'Tester2'],
   [UNLOCK_CODE_3, 'Tester3'],
+  [UNLOCK_CODE_4, 'Tester4'],
+  [UNLOCK_CODE_5, 'Tester5'],
+  [UNLOCK_CODE_6, 'Tester6'],
+  [UNLOCK_CODE_7, 'Tester7'],
 ]);
 
 
