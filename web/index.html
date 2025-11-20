@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Opptak</title>
+
+  <!-- Ekstern stilfil med all CSS -->
+  <link rel="stylesheet" href="./unlock.css">
+</head>
+<body>
+
+  <!-- Kort for å låse opp med kode -->
+  <section id="unlockCard">
+  <form id="unlockForm" method="post" action="about:blank">
+    <label for="unlockCode">Kode:</label>
+    <input
+      id="unlockCode"
+      name="unlockCode"
+      autocomplete="one-time-code"
+      required
+    />
+    <button id="unlockBtn" type="submit">Lås opp</button>
+  </form>
+
+  <div id="unlockMsg" class="statusline">
+    Opptak er låst. Skriv inn kode for å låse opp.
+  </div>
+</section>
+
+  <!-- Selve opptaksdelen (skjult til brukeren har låst opp) -->
+  <section id="recWrap" class="hidden" aria-hidden="true">
+  <video id="preview" autoplay playsinline muted></video>
+
+  <div class="controls">
+    <button data-slot="1">Start Opptak 1</button>
+    <button data-slot="2">Start Opptak 2</button>
+    <button data-slot="3">Start Opptak 3</button>
+    <button id="stopBtn" disabled>Stopp &amp; Last opp</button>
+
+    <label>
+      <input type="checkbox" id="sysAudioToggle">
+      Ta opp systemlyd
+    </label>
+
+    <span id="status"></span>
+  </div>
+
+  <h2>Last opp skjermopptak via filopplasting</h2>
+
+  <h3>Opptak 1</h3>
+  <input id="fileUpload1" type="file" accept="video/*" />
+  <div class="progress"><div id="fileUploadBar1"></div></div>
+  <div id="fileUploadStatus1" class="statusline"></div>
+  <button id="fileUploadBtn1">Last opp som Opptak 1</button>
+
+  <h3>Opptak 2</h3>
+  <input id="fileUpload2" type="file" accept="video/*" />
+  <div class="progress"><div id="fileUploadBar2"></div></div>
+  <div id="fileUploadStatus2" class="statusline"></div>
+  <button id="fileUploadBtn2">Last opp som Opptak 2</button>
+
+  <h3>Opptak 3</h3>
+  <input id="fileUpload3" type="file" accept="video/*" />
+  <div class="progress"><div id="fileUploadBar3"></div></div>
+  <div id="fileUploadStatus3" class="statusline"></div>
+  <button id="fileUploadBtn3">Last opp som Opptak 3</button>
+</section>
+
+  <!-- Låse-funksjonalitet og opptakslogikk -->
+  <script type="module" src="./unlock.js?v=5"></script>
+  <script type="module" src="./src/main.js?v=5"></script>
+</body>
+</html>
