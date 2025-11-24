@@ -30,13 +30,14 @@
 
   <!-- Selve opptaksdelen (skjult til brukeren har låst opp) -->
   <section id="recWrap" class="hidden" aria-hidden="true">
-  <video id="preview" autoplay playsinline muted></video>
-
+  <!-- Her kan man vise en preview <video id="preview" autoplay playsinline muted></video>-->
   <div class="controls">
     <button data-slot="1">Start Opptak 1</button>
+    <button class="stopBtn"  disabled>Stopp &amp; Last opp</button>
     <button data-slot="2">Start Opptak 2</button>
+    <button class="stopBtn" disabled>Stopp &amp; Last opp</button>
     <button data-slot="3">Start Opptak 3</button>
-    <button id="stopBtn" disabled>Stopp &amp; Last opp</button>
+    <button class="stopBtn" disabled>Stopp &amp; Last opp</button>
 
     <label>
       <input type="checkbox" id="sysAudioToggle">
@@ -50,22 +51,24 @@
 
   <h3>Opptak 1</h3>
   <input id="fileUpload1" type="file" accept="video/*" />
-  <div class="progress"><div id="fileUploadBar1"></div></div>
+  <!-- Her kan man vise en progress bar <div class="progress"><div id="fileUploadBar1"></div></div>-->
   <div id="fileUploadStatus1" class="statusline"></div>
   <button id="fileUploadBtn1">Last opp som Opptak 1</button>
 
   <h3>Opptak 2</h3>
   <input id="fileUpload2" type="file" accept="video/*" />
-  <div class="progress"><div id="fileUploadBar2"></div></div>
+  <!-- Her kan man vise en progress bar <div class="progress"><div id="fileUploadBar2"></div></div>-->
+
   <div id="fileUploadStatus2" class="statusline"></div>
   <button id="fileUploadBtn2">Last opp som Opptak 2</button>
 
   <h3>Opptak 3</h3>
   <input id="fileUpload3" type="file" accept="video/*" />
-  <div class="progress"><div id="fileUploadBar3"></div></div>
+<!-- Her kan man vise en progress bar <div class="progress"><div id="fileUploadBar3"></div></div>-->
   <div id="fileUploadStatus3" class="statusline"></div>
   <button id="fileUploadBtn3">Last opp som Opptak 3</button>
 </section>
+
 
   <!-- Låse-funksjonalitet og opptakslogikk -->
   <script type="module" src="./unlock.js?v=5"></script>
