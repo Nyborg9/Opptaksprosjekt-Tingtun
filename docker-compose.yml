@@ -24,6 +24,8 @@ services:
       PER_UPLOAD_MAX_BYTES: 3221225472  # Maks størrelse per enkelt video (3 GB)
       INFLIGHT_TTL_MS: 7200000          # Hvor lenge pågående opplastinger kan leve 2 timer
 
+    user: "10001:10001"
+    
     # Volumer for lagring
     volumes:
       - server_uploads:/app/uploads     # Ferdige video-opplastinger
