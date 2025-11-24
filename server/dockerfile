@@ -21,6 +21,9 @@ RUN if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit
 # Oppretter en ikke-root bruker for bedre sikkerhet
 RUN groupadd -r nodeapp && useradd -r -g nodeapp nodeapp
 
+RUN groupadd -g 10001 -r nodeapp \
+ && useradd  -u 10001 -r -g nodeapp nodeapp
+
 # Kopierer resten av prosjektfilene inn i containeren
 # Endrer eierskap til nodeapp:nodeapp for trygg filtilgang
 COPY --chown=nodeapp:nodeapp . .
