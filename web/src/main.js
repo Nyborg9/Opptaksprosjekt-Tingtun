@@ -1,9 +1,10 @@
+// src/main.js
 import { createChunkUploader } from './upload.js';
 import { startRecorder } from './recorder.js';
 import { wireFileUploader } from './file-upload.js';
 
 // Pekere til sentrale elementer
-const stopBtn        = document.getElementById('stopBtn');
+const stopButtons     = Array.from(document.querySelectorAll('.stopBtn'));
 const statusEl       = document.getElementById('status');
 const preview        = document.getElementById('preview');
 const sysAudioToggle = document.getElementById('sysAudioToggle');
@@ -25,6 +26,11 @@ function setStartButtonsDisabled(disabled) {
   });
 }
 
+// Slår av/på alle stopp-knappene samtidig
+function setStopButtonsDisabled(disabled) {
+  stopButtons.forEach(btn => (btn.disabled = disabled));
+}
+
 /**
  * Starter et skjermopptak for gitt slot (1–6).
  * Slot-nummeret avgjør hvilket “Opptak X” filen havner som på serveren.
@@ -32,7 +38,7 @@ function setStartButtonsDisabled(disabled) {
 async function start(slot) {
   // Deaktiver start-knapper mens vi setter opp
   setStartButtonsDisabled(true);
-  if (stopBtn) stopBtn.disabled = true;
+  setStopButtonsDisabled(true);
 
   try {
     // Sjekk om brukeren har låst opp (token i sessionStorage)
@@ -81,7 +87,7 @@ async function start(slot) {
     });
 
     // Nå kan brukeren stoppe opptaket
-    if (stopBtn) stopBtn.disabled = false;
+    setStopButtonsDisabled(false);
   } catch (e) {
     console.error(e);
     setStatus(`Feil ved start av opptak: ${e.message}`);
@@ -89,10 +95,10 @@ async function start(slot) {
   }
 }
 
-//Stopp-knappen: avslutter opptaket og fullfører opplasting til server.
-
+// Stopp-knappen: avslutter opptaket og fullfører opplasting til server.
 async function stop() {
-  if (stopBtn) stopBtn.disabled = true;
+  setStopButtonsDisabled(true);
+
   recordingActive = false;
 
   try {
@@ -132,11 +138,11 @@ function cleanup() {
   up  = null;
   recordingActive = false;
   setStartButtonsDisabled(false);
-  if (stopBtn) stopBtn.disabled = true;
+  setStopButtonsDisabled(true);
 }
 
-// Koble stopp-knappen til stop()-funksjonen
-stopBtn?.addEventListener('click', stop);
+// Koble ALLE stopp-knapper til stop()  <-- endret
+stopButtons.forEach(btn => btn.addEventListener('click', stop));
 
 /**
  * Init-funksjon som kjører én gang når skriptet lastes:
@@ -148,9 +154,10 @@ stopBtn?.addEventListener('click', stop);
   if (!supported) {
     setStatus('MediaRecorder støttes ikke i denne nettleseren.');
     setStartButtonsDisabled(true);
+    setStopButtonsDisabled(true); 
   } else {
     setStartButtonsDisabled(false);
-    if (stopBtn) stopBtn.disabled = true;
+    setStopButtonsDisabled(true);
   }
 
   // Knytt alle knapper med data-slot til riktig slot-nummer

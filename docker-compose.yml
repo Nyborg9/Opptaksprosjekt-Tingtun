@@ -13,6 +13,10 @@ services:
       UNLOCK_CODE_1: "${UNLOCK_CODE_1}"
       UNLOCK_CODE_2: "${UNLOCK_CODE_2}"
       UNLOCK_CODE_3: "${UNLOCK_CODE_3}"
+      UNLOCK_CODE_4: "${UNLOCK_CODE_4}"
+      UNLOCK_CODE_5: "${UNLOCK_CODE_5}"
+      UNLOCK_CODE_6: "${UNLOCK_CODE_6}"
+      UNLOCK_CODE_7: "${UNLOCK_CODE_7}"
       TOKEN_TTL_MS: 7200000             # Gyldighetstid for unlock-tokens 2 timer
       UPLOAD_CHUNK_LIMIT_BYTES: 8388608 # Maks størrelse per chunk (8 MB)
       PER_UPLOAD_MAX_BYTES: 3221225472  # Maks størrelse per enkelt video (3 GB)
