@@ -1,5 +1,7 @@
 services:
   server:
+    ports:
+      - "3001:3001"
     # Bygger server-imaget fra ./server-mappen med Dockerfile der inne
     build:
       context: ./server
