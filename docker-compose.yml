@@ -31,7 +31,7 @@ services:
       - server_data:/app/data           # Tokens
 
     # Gjør containerens filsystem skrivebeskyttet
-    read_only: true
+    read_only: false
 
     # midlertidige skrivbare områder (kreves av Node/NPM/OS)
     tmpfs:
